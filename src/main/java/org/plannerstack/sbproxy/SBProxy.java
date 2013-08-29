@@ -80,7 +80,9 @@ public class SBProxy {
 	/**
 	 * Create an Azure Service Bus contract using the default Azure root URIs.
 	 *
-	 * @param azureConfig the Service Bus configuration
+	 * @param namespace the namespace
+	 * @param authname the authentication name
+	 * @param password the authentication password
 	 * @return the Service Bus contract
 	 * @see <a href="http://www.windowsazure.com/en-us/develop/java/how-to-guides/service-bus-topics/">the
 	 *      Azure Service Bus documentation for Java</a>
