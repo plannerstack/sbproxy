@@ -17,7 +17,7 @@ import org.kohsuke.args4j.Option;
  */
 class Options {
 	private static final String PROPERTY_DEFAULTS = "/sbproxy-defaults.properties";
-	private static final String DEFAULT_PROPERTIES_FILE = "/etc/sbproxy.properties";
+	private static final String DEFAULT_PROPERTIES_FILE = "sbproxy.properties";
 
 	private CmdLineParser parser;
 
