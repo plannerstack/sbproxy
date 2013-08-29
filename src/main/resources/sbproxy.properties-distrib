@@ -1,0 +1,8 @@
+#azure.namespace =
+#azure.servicebus.topic =
+#azure.servicebus.subscription =
+#azure.authentication.name =
+#azure.authentication.password =
+#max_message_size =
+#zeromq.address =
+#zeromq.compress_messages =
