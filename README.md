@@ -1,6 +1,8 @@
 Azure Service Bus to ZeroMQ proxy
 =================================
 
+[![Build Status](https://travis-ci.org/plannerstack/sbproxy.png)](https://travis-ci.org/plannerstack/sbproxy)
+
 This tool receives messages from a Azure Service Bus topic subscription and forwards them to a ZeroMQ socket.
 
 
