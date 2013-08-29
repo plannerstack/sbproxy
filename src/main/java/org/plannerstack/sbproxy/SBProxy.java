@@ -11,7 +11,6 @@ import java.io.OutputStream;
 import java.util.zip.GZIPOutputStream;
 
 import org.jeromq.ZMQ;
-import org.jeromq.ZMQ.Socket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,9 +38,11 @@ public class SBProxy {
 	private static final String AZURE_SERVICE_BUS_ROOT_URI = ".servicebus.windows.net";
 	private static final String AZURE_WRAP_ROOT_URI = "-sb.accesscontrol.windows.net/WRAPv0.9";
 	private static final long ZMQ_LINGER = 1000; // in milliseconds
+	private static final int ERROR_DELAY_BASE = 1000; // in milliseconds
+	private static final int MAX_ERROR_DELAY = 60 * 60 * 1000; // in milliseconds
 
 	private ServiceBusContract azureService;
-	private Socket zmqSocket;
+	private ZMQ.Socket zmqSocket;
 	private int maxMsgSize;
 	private boolean useCompression;
 
@@ -55,7 +56,7 @@ public class SBProxy {
 	 *            have been bound to an interface
 	 * @see #DEFAULT_MAX_MSG_SIZE
 	 */
-	public SBProxy(ServiceBusContract azureService, Socket zmqSocket) {
+	public SBProxy(ServiceBusContract azureService, ZMQ.Socket zmqSocket) {
 		this(azureService, zmqSocket, DEFAULT_MAX_MSG_SIZE, true);
 	}
 
@@ -69,7 +70,7 @@ public class SBProxy {
 	 * @param maxMsgSize the maximum message size (in bytes)
 	 * @param useCompression compress outgoing messages using GZIP
 	 */
-	public SBProxy(ServiceBusContract azureService, Socket zmqSocket, int maxMsgSize, boolean useCompression) {
+	public SBProxy(ServiceBusContract azureService, ZMQ.Socket zmqSocket, int maxMsgSize, boolean useCompression) {
 		this.azureService = azureService;
 		this.zmqSocket = zmqSocket;
 		this.maxMsgSize = maxMsgSize;
@@ -98,10 +99,10 @@ public class SBProxy {
 	 * @return the ZeroMQ socket; remember to close the socket
 	 * @see <a href="http://zguide.zeromq.org/page:all">the ZeroMQ guide</a>
 	 */
-	public static Socket createZmqSocket(String zmqAddress) {
+	public static ZMQ.Socket createZmqSocket(String zmqAddress) {
 		log.info("creating ZeroMQ endpoint: {}", zmqAddress);
 		ZMQ.Context context = ZMQ.context();
-		Socket socket = context.socket(ZMQ.PUB);
+		ZMQ.Socket socket = context.socket(ZMQ.PUB);
 		socket.bind(zmqAddress);
 		socket.setLinger(ZMQ_LINGER);
 		return socket;
@@ -117,12 +118,27 @@ public class SBProxy {
 	 * @see #proxyMessage
 	 */
 	public void proxyLoop(String topic, String subscription) {
+		boolean firstMessage = true;
+		int error_count = 0;
 		while (true) {
 			try {
 				proxyMessage(topic, subscription);
+				if (firstMessage) {
+					if (!log.isDebugEnabled()) log.info("message proxied; channel is up");
+					firstMessage = false;
+				}
+				if (error_count > 0) log.error("message proxied; channel is restored");
+				error_count = 0;
 			} catch (Exception e) {
-				log.error("error in proxy loop", e);
-				break;
+				log.error("error proxying message", e);
+				error_count++;
+				try {
+					int sleep_time = Math.min((1 << error_count) * ERROR_DELAY_BASE, MAX_ERROR_DELAY);
+					log.error("sleeping for {} milliseconds", sleep_time);
+					Thread.sleep(sleep_time);
+				} catch (InterruptedException e1) {
+					break;
+				}
 			}
 		}
 	}
@@ -141,11 +157,11 @@ public class SBProxy {
 		ReceiveSubscriptionMessageResult result = azureService.receiveSubscriptionMessage(topic, subscription);
 		BrokeredMessage msg = result.getValue();
 		if (msg == null) {
-			log.warn("received null message");
+			log.debug("skipping null message");
 			return;
 		}
 		if (msg.getMessageId() == null) {
-			log.warn("received message with null id: {}", msg.getLabel());
+			log.debug("skipping message with null id");
 			return;
 		}
 
@@ -178,7 +194,7 @@ public class SBProxy {
 	/**
 	 * @return the ZeroMQ socket
 	 */
-	public Socket getZmqSocket() {
+	public ZMQ.Socket getZmqSocket() {
 		return zmqSocket;
 	}
 

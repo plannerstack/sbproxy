@@ -1,6 +1,8 @@
 package org.plannerstack.sbproxy;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mock;
@@ -9,7 +11,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.zip.GZIPOutputStream;
 
-import org.jeromq.ZMQ.Socket;
+import org.jeromq.ZMQ;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.powermock.core.classloader.annotations.PrepareForTest;
@@ -26,7 +28,7 @@ import com.microsoft.windowsazure.services.serviceBus.models.ReceiveSubscription
 public class SBProxyTest {
 
 	ServiceBusContract azureService = mock(ServiceBusContract.class);
-	Socket zmqSocket = mock(Socket.class);
+	ZMQ.Socket zmqSocket = mock(ZMQ.Socket.class);
 
 	@Test
 	public void testConvenienceConstructor() {
@@ -49,11 +51,11 @@ public class SBProxyTest {
 	}
 
 	@Test
-	@PrepareForTest(Socket.class)
+	@PrepareForTest(ZMQ.Socket.class)
 	public void testProxyMessage() throws Exception {
 		SBProxy proxy = new SBProxy(azureService, zmqSocket, 1024, false);
 
-		String content = "message1";
+		String content = "message";
 		BrokeredMessage message = new BrokeredMessage(content);
 		message.setMessageId("messageId1");
 		when(azureService.receiveSubscriptionMessage("topic", "subscription"))
@@ -64,7 +66,33 @@ public class SBProxyTest {
 	}
 
 	@Test
-	@PrepareForTest(Socket.class)
+	@PrepareForTest(ZMQ.Socket.class)
+	public void testSkipNullMessage() throws Exception {
+		SBProxy proxy = new SBProxy(azureService, zmqSocket, 1024, false);
+
+		when(azureService.receiveSubscriptionMessage("topic", "subscription"))
+				.thenReturn(new ReceiveSubscriptionMessageResult(null));
+
+		proxy.proxyMessage("topic", "subscription");
+		verify(zmqSocket, never()).send(any(byte[].class));
+	}
+
+	@Test
+	@PrepareForTest(ZMQ.Socket.class)
+	public void testSkipNullMessageId() throws Exception {
+		SBProxy proxy = new SBProxy(azureService, zmqSocket, 1024, false);
+
+		String content = "message";
+		BrokeredMessage message = new BrokeredMessage(content);
+		when(azureService.receiveSubscriptionMessage("topic", "subscription"))
+				.thenReturn(new ReceiveSubscriptionMessageResult(message));
+
+		proxy.proxyMessage("topic", "subscription");
+		verify(zmqSocket, never()).send(any(byte[].class));
+	}
+
+	@Test
+	@PrepareForTest(ZMQ.Socket.class)
 	public void testCompressedProxyMessage() throws Exception {
 		SBProxy proxy = new SBProxy(azureService, zmqSocket, 1024, true);
 
@@ -86,7 +114,7 @@ public class SBProxyTest {
 	@Test(expected = IOException.class)
 	public void testMessageSizeTooLong() throws Exception {
 		ServiceBusContract azureService = mock(ServiceBusContract.class);
-		Socket zmqSocket = mock(Socket.class);
+		ZMQ.Socket zmqSocket = mock(ZMQ.Socket.class);
 		SBProxy proxy = new SBProxy(azureService, zmqSocket, 10, true);
 
 		String content = "a message longer than 10 bytes";
